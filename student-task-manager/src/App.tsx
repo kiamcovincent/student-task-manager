@@ -1,30 +1,72 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import "./App.css";
 
 const DEMO_EMAIL = "student@example.com";
 const DEMO_PASSWORD = "123456";
 
+type Page =
+  | "login"
+  | "register"
+  | "forgot"
+  | "verify"
+  | "reset"
+  | "dashboard";
+
+type Priority = "Low" | "Medium" | "High";
+
+type User = {
+  name: string;
+  email: string;
+};
+
+type Task = {
+  id: number | null;
+  subject: string;
+  title: string;
+  date: string;
+  time: string;
+  priority: Priority;
+  completed: boolean;
+};
+
 function App() {
-  const [page, setPage] = useState("login");
-  const [user, setUser] = useState(null);
+  const [page, setPage] = useState<Page>("login");
+  const [user, setUser] = useState<User | null>(null);
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [name, setName] = useState<string>("");
 
-  const [tasks, setTasks] = useState(() => {
-    const saved = localStorage.getItem("studentTaskManagerTasks");
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    const saved = localStorage.getItem(
+      "studentTaskManagerTasks"
+    );
+
+    if (!saved) {
+      return [];
+    }
 
     try {
-      return saved ? JSON.parse(saved) : [];
+      const parsed: unknown = JSON.parse(saved);
+
+      if (Array.isArray(parsed)) {
+        return parsed as Task[];
+      }
+
+      return [];
     } catch {
       return [];
     }
   });
 
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<string>("");
 
-  const [task, setTask] = useState({
+  const [task, setTask] = useState<Task>({
     id: null,
     subject: "",
     title: "",
@@ -34,8 +76,10 @@ function App() {
     completed: false,
   });
 
-  const [editing, setEditing] = useState(false);
-  const [filter, setFilter] = useState("All");
+  const [editing, setEditing] = useState<boolean>(false);
+  const [filter, setFilter] = useState<
+    "All" | "Pending" | "Completed"
+  >("All");
 
   useEffect(() => {
     localStorage.setItem(
@@ -48,7 +92,7 @@ function App() {
      LOGIN
   ========================= */
 
-  const login = (e) => {
+  const login = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (
@@ -73,7 +117,7 @@ function App() {
      REGISTER
   ========================= */
 
-  const register = (e) => {
+  const register = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (!name || !email || !password) {
@@ -94,7 +138,9 @@ function App() {
      FORGOT PASSWORD
   ========================= */
 
-  const forgotPassword = (e) => {
+  const forgotPassword = (
+    e: FormEvent<HTMLFormElement>
+  ) => {
     e.preventDefault();
 
     if (!email) {
@@ -110,10 +156,13 @@ function App() {
      VERIFY CODE
   ========================= */
 
-  const verifyCode = (e) => {
+  const verifyCode = (
+    e: FormEvent<HTMLFormElement>
+  ) => {
     e.preventDefault();
 
-    const code = e.target.code.value;
+    const formData = new FormData(e.currentTarget);
+    const code = String(formData.get("code") || "");
 
     if (code === "123456") {
       setMessage("");
@@ -127,14 +176,25 @@ function App() {
      RESET PASSWORD
   ========================= */
 
-  const resetPassword = (e) => {
+  const resetPassword = (
+    e: FormEvent<HTMLFormElement>
+  ) => {
     e.preventDefault();
 
-    const newPassword =
-      e.target.newPassword.value;
+    const formData = new FormData(e.currentTarget);
 
-    const confirmPassword =
-      e.target.confirmPassword.value;
+    const newPassword = String(
+      formData.get("newPassword") || ""
+    );
+
+    const confirmPassword = String(
+      formData.get("confirmPassword") || ""
+    );
+
+    if (!newPassword || !confirmPassword) {
+      setMessage("Please complete both password fields.");
+      return;
+    }
 
     if (newPassword !== confirmPassword) {
       setMessage("Passwords do not match.");
@@ -156,6 +216,7 @@ function App() {
     setUser(null);
     setEmail("");
     setPassword("");
+    setMessage("");
     setPage("login");
   };
 
@@ -163,18 +224,25 @@ function App() {
      TASK CHANGE
   ========================= */
 
-  const handleTaskChange = (e) => {
-    setTask({
-      ...task,
-      [e.target.name]: e.target.value,
-    });
+  const handleTaskChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+
+    setTask((currentTask) => ({
+      ...currentTask,
+      [name]:
+        name === "priority"
+          ? (value as Priority)
+          : value,
+    }));
   };
 
   /* =========================
      SAVE TASK
   ========================= */
 
-  const saveTask = (e) => {
+  const saveTask = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (
@@ -187,9 +255,9 @@ function App() {
       return;
     }
 
-    if (editing) {
-      setTasks(
-        tasks.map((item) =>
+    if (editing && task.id !== null) {
+      setTasks((currentTasks) =>
+        currentTasks.map((item) =>
           item.id === task.id
             ? {
                 ...task,
@@ -198,8 +266,8 @@ function App() {
         )
       );
     } else {
-      setTasks([
-        ...tasks,
+      setTasks((currentTasks) => [
+        ...currentTasks,
         {
           ...task,
           id: Date.now(),
@@ -233,7 +301,7 @@ function App() {
      EDIT TASK
   ========================= */
 
-  const editTask = (item) => {
+  const editTask = (item: Task) => {
     setTask(item);
     setEditing(true);
 
@@ -247,10 +315,14 @@ function App() {
      DELETE TASK
   ========================= */
 
-  const deleteTask = (id) => {
+  const deleteTask = (id: number | null) => {
+    if (id === null) {
+      return;
+    }
+
     if (window.confirm("Delete this task?")) {
-      setTasks(
-        tasks.filter(
+      setTasks((currentTasks) =>
+        currentTasks.filter(
           (item) => item.id !== id
         )
       );
@@ -261,9 +333,13 @@ function App() {
      COMPLETE TASK
   ========================= */
 
-  const toggleComplete = (id) => {
-    setTasks(
-      tasks.map((item) =>
+  const toggleComplete = (id: number | null) => {
+    if (id === null) {
+      return;
+    }
+
+    setTasks((currentTasks) =>
+      currentTasks.map((item) =>
         item.id === id
           ? {
               ...item,
@@ -278,41 +354,35 @@ function App() {
      FILTER
   ========================= */
 
-  const filteredTasks = tasks.filter(
-    (item) => {
-      if (filter === "Completed") {
-        return item.completed;
-      }
-
-      if (filter === "Pending") {
-        return !item.completed;
-      }
-
-      return true;
+  const filteredTasks = tasks.filter((item) => {
+    if (filter === "Completed") {
+      return item.completed;
     }
-  );
+
+    if (filter === "Pending") {
+      return !item.completed;
+    }
+
+    return true;
+  });
 
   /* =========================
      STATISTICS
   ========================= */
 
-  const completedCount =
-    tasks.filter(
-      (item) => item.completed
-    ).length;
+  const completedCount = tasks.filter(
+    (item) => item.completed
+  ).length;
 
-  const pendingCount =
-    tasks.filter(
-      (item) => !item.completed
-    ).length;
+  const pendingCount = tasks.filter(
+    (item) => !item.completed
+  ).length;
 
   const progress =
     tasks.length === 0
       ? 0
       : Math.round(
-          (completedCount /
-            tasks.length) *
-            100
+          (completedCount / tasks.length) * 100
         );
 
   /* =========================
@@ -322,7 +392,6 @@ function App() {
   if (page === "login") {
     return (
       <div className="auth-page">
-
         <div className="auth-card">
 
           <div className="logo">
@@ -368,19 +437,21 @@ function App() {
               placeholder="Enter your password"
               value={password}
               onChange={(e) =>
-                setPassword(
-                  e.target.value
-                )
+                setPassword(e.target.value)
               }
             />
 
-            <button className="primary-button">
+            <button
+              type="submit"
+              className="primary-button"
+            >
               Login
             </button>
 
           </form>
 
           <button
+            type="button"
             className="text-button"
             onClick={() => {
               setMessage("");
@@ -394,6 +465,7 @@ function App() {
             Don't have an account?
 
             <button
+              type="button"
               className="link-button"
               onClick={() => {
                 setMessage("");
@@ -419,7 +491,6 @@ function App() {
           </div>
 
         </div>
-
       </div>
     );
   }
@@ -431,7 +502,6 @@ function App() {
   if (page === "register") {
     return (
       <div className="auth-page">
-
         <div className="auth-card">
 
           <div className="logo">
@@ -490,19 +560,21 @@ function App() {
               placeholder="Create a password"
               value={password}
               onChange={(e) =>
-                setPassword(
-                  e.target.value
-                )
+                setPassword(e.target.value)
               }
             />
 
-            <button className="primary-button">
+            <button
+              type="submit"
+              className="primary-button"
+            >
               Create Account
             </button>
 
           </form>
 
           <button
+            type="button"
             className="text-button"
             onClick={() => {
               setMessage("");
@@ -513,7 +585,6 @@ function App() {
           </button>
 
         </div>
-
       </div>
     );
   }
@@ -525,7 +596,6 @@ function App() {
   if (page === "forgot") {
     return (
       <div className="auth-page">
-
         <div className="auth-card">
 
           <div className="logo">
@@ -562,13 +632,17 @@ function App() {
               }
             />
 
-            <button className="primary-button">
+            <button
+              type="submit"
+              className="primary-button"
+            >
               Send Verification Code
             </button>
 
           </form>
 
           <button
+            type="button"
             className="text-button"
             onClick={() => {
               setMessage("");
@@ -579,7 +653,6 @@ function App() {
           </button>
 
         </div>
-
       </div>
     );
   }
@@ -591,7 +664,6 @@ function App() {
   if (page === "verify") {
     return (
       <div className="auth-page">
-
         <div className="auth-card">
 
           <div className="logo">
@@ -625,14 +697,16 @@ function App() {
               placeholder="Enter 123456"
             />
 
-            <button className="primary-button">
+            <button
+              type="submit"
+              className="primary-button"
+            >
               Verify
             </button>
 
           </form>
 
         </div>
-
       </div>
     );
   }
@@ -644,7 +718,6 @@ function App() {
   if (page === "reset") {
     return (
       <div className="auth-page">
-
         <div className="auth-card">
 
           <div className="logo">
@@ -687,14 +760,16 @@ function App() {
               placeholder="Confirm password"
             />
 
-            <button className="primary-button">
+            <button
+              type="submit"
+              className="primary-button"
+            >
               Reset Password
             </button>
 
           </form>
 
         </div>
-
       </div>
     );
   }
@@ -721,6 +796,7 @@ function App() {
         </div>
 
         <button
+          type="button"
           className="logout-button"
           onClick={logout}
         >
@@ -943,7 +1019,10 @@ function App() {
 
               <div className="form-buttons">
 
-                <button className="primary-button">
+                <button
+                  type="submit"
+                  className="primary-button"
+                >
                   {editing
                     ? "Update Task"
                     : "Add Task"}
@@ -987,19 +1066,24 @@ function App() {
               <select
                 value={filter}
                 onChange={(e) =>
-                  setFilter(e.target.value)
+                  setFilter(
+                    e.target.value as
+                      | "All"
+                      | "Pending"
+                      | "Completed"
+                  )
                 }
               >
 
-                <option>
+                <option value="All">
                   All
                 </option>
 
-                <option>
+                <option value="Pending">
                   Pending
                 </option>
 
-                <option>
+                <option value="Completed">
                   Completed
                 </option>
 
@@ -1043,6 +1127,7 @@ function App() {
                     >
 
                       <button
+                        type="button"
                         className="check-button"
                         onClick={() =>
                           toggleComplete(
@@ -1077,8 +1162,7 @@ function App() {
 
                         <p>
                           📅 {item.date}
-                          &nbsp; 🕐{" "}
-                          {item.time}
+                          &nbsp; 🕐 {item.time}
                         </p>
 
                       </div>
@@ -1086,6 +1170,7 @@ function App() {
                       <div className="task-actions">
 
                         <button
+                          type="button"
                           onClick={() =>
                             editTask(item)
                           }
@@ -1094,10 +1179,9 @@ function App() {
                         </button>
 
                         <button
+                          type="button"
                           onClick={() =>
-                            deleteTask(
-                              item.id
-                            )
+                            deleteTask(item.id)
                           }
                         >
                           🗑️
